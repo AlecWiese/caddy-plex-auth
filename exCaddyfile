@@ -7,8 +7,8 @@
 			client_id env.pocketIDClient
 			client_secret env.pocketIDSecret
 			scopes openid email profile
-			base_auth_url http://pocketid.moosefeelings.com
-			metadata_url http://pocketid.moosefeelings.com
+			base_auth_url http://pocketid.domain.com
+			metadata_url http://pocketid.domain.com
 		}
 
 	    authentication portal overseerrportal {
@@ -52,7 +52,7 @@
 
 }
 
-overseerr-test.moosefeelings.com {
+overseerr-test.domain.com {
 	@auth {
 		path /caddy-security/*
 	}
@@ -61,6 +61,6 @@ overseerr-test.moosefeelings.com {
 	}
 	route {
 		authorize with overseerr_policy
-		reverse_proxy 192.168.7.51:8686
+		reverse_proxy 192.168.1.12:8686
 	}
 }
