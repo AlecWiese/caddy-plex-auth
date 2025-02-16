@@ -1,0 +1,74 @@
+{
+	security {
+		oauth identity provider generic {
+			delay_start 3
+			realm generic
+			driver generic
+			client_id 0ecd1e5b-43c1-4b23-94c7-aec8d44f896e
+			client_secret H9sqhu3KKjxGx4hFkdkJqp3VBCgYchT0
+			scopes openid email profile
+			base_auth_url http://localhost
+			metadata_url http://localhost/.well-known/openid-configuration
+		}
+
+	    authentication portal overseerrportal {
+        transform user {
+            match email {http.auth.user.email}
+            match realm pocketid
+            action add role plex_user
+            # Add the email as a custom claim that our module can use
+            action add claim plex_email {http.auth.user.email}
+        }
+    }	
+
+		authentication portal myportal {
+			crypto default token lifetime 3600 # Seconds until you have to re-authenticate
+			enable identity provider generic
+			cookie insecure off
+
+			transform user {
+				match realm generic
+				action add role user
+			}
+		}
+
+		authorization policy overseerr_policy {
+            set auth url /caddy-security/oauth2/generic
+            allow roles plex_user
+            inject headers with claims
+            # We'll need to inject the Plex token as a cookie
+            rewrite token name plextoken
+            inject headers Authorization "Bearer {plextoken}"
+        }
+
+		authorization policy mypolicy {
+			set auth url /caddy-security/oauth2/generic
+			allow roles user
+			inject headers with claims
+		}
+	}
+
+	acme_dns cloudflare env.cftoken
+
+	dynamic_dns {
+		provider cloudflare env.cftoken
+		domains {
+			domain.com socks
+			domain.com vpn
+			domain.com ipsec
+		}
+	}
+}
+
+overseerr-test.moosefeelings.com {
+	@auth {
+		path /caddy-security/*
+	}
+	route @auth {
+		authenticate with myportal
+	}
+	route {
+		authorize with mypolicy
+		reverse_proxy 192.168.7.51:8686
+	}
+}
