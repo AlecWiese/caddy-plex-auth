@@ -1,4 +1,4 @@
-package caddy-plex-auth
+package caddyplexauth
 
 import (
 	"bytes"
