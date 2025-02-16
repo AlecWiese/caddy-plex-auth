@@ -50,14 +50,6 @@
 
 	acme_dns cloudflare env.cftoken
 
-	dynamic_dns {
-		provider cloudflare env.cftoken
-		domains {
-			domain.com socks
-			domain.com vpn
-			domain.com ipsec
-		}
-	}
 }
 
 overseerr-test.moosefeelings.com {
