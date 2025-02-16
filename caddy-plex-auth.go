@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 
@@ -19,9 +20,12 @@ func init() {
 
 // PlexOverseerrHandler handles Plex token exchange with Overseerr
 type PlexOverseerrHandler struct {
-    OverseerrURL string `json:"overseerr_url,omitempty"`
-    // Add identifier type
-    IdentifierType string `json:"identifier_type,omitempty" default:"email"`
+	// The Overseerr base URL
+	OverseerrURL string `json:"overseerr_url,omitempty"`
+	// The type of identifier to use (email or uid)
+	IdentifierType string `json:"identifier_type,omitempty"`
+	// Enable debug logging
+	Debug bool `json:"debug,omitempty"`
 }
 
 // CaddyModule returns the Caddy module information.
@@ -37,6 +41,9 @@ func (h *PlexOverseerrHandler) Provision(ctx caddy.Context) error {
 	if h.OverseerrURL == "" {
 		h.OverseerrURL = "http://overseerr:5055"
 	}
+	if h.IdentifierType == "" {
+		h.IdentifierType = "email"
+	}
 	return nil
 }
 
@@ -45,32 +52,59 @@ func (h *PlexOverseerrHandler) Validate() error {
 	if h.OverseerrURL == "" {
 		return fmt.Errorf("overseerr_url is required")
 	}
+	if h.IdentifierType != "email" && h.IdentifierType != "uid" {
+		return fmt.Errorf("identifier_type must be either 'email' or 'uid'")
+	}
 	return nil
+}
+
+func (h *PlexOverseerrHandler) logDebug(format string, v ...interface{}) {
+	if h.Debug {
+		log.Printf("[plexoverseerr] "+format, v...)
+	}
 }
 
 // ServeHTTP implements caddyhttp.MiddlewareHandler.
 func (h *PlexOverseerrHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.Handler) error {
-    // Get the identifier from the appropriate claim
-    var identifier string
-    switch h.IdentifierType {
-    case "email":
-        identifier = r.Header.Get("X-Plex-Email") // Set by caddy-security from claims
-    case "uid":
-        identifier = r.Header.Get("X-Plex-UID")
-    default:
-        return fmt.Errorf("unknown identifier type: %s", h.IdentifierType)
-    }
-
-	// Check if we already have a session cookie
-	if _, err := r.Cookie("connect.sid"); err == nil {
+	// Extract Plex token from Authorization header
+	plexToken := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if plexToken == "" {
+		h.logDebug("No Plex token found in Authorization header")
 		return next.ServeHTTP(w, r)
 	}
 
+	// Check if we already have a session cookie
+	if _, err := r.Cookie("connect.sid"); err == nil {
+		h.logDebug("Existing session cookie found, skipping token exchange")
+		return next.ServeHTTP(w, r)
+	}
+
+	// Get the identifier based on type
+	var identifier string
+	switch h.IdentifierType {
+	case "email":
+		identifier = r.Header.Get("X-Plex-Email")
+		h.logDebug("Using email identifier: %s", identifier)
+	case "uid":
+		identifier = r.Header.Get("X-Plex-UID")
+		h.logDebug("Using UID identifier: %s", identifier)
+	}
+
+	if identifier == "" {
+		return fmt.Errorf("no %s identifier found in request headers", h.IdentifierType)
+	}
+
 	// Create the auth request body
-    authBody := map[string]interface{}{
-        "authToken": plexToken,
-        "identifier": identifier,
-    }
+	authBody := map[string]interface{}{
+		"authToken":  plexToken,
+		"identifier": identifier,
+	}
+	jsonBody, err := json.Marshal(authBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal auth body: %w", err)
+	}
+
+	h.logDebug("Making auth request to Overseerr")
 
 	// Make the auth request to Overseerr
 	authReq, err := http.NewRequest(
@@ -79,20 +113,21 @@ func (h *PlexOverseerrHandler) ServeHTTP(w http.ResponseWriter, r *http.Request,
 		bytes.NewBuffer(jsonBody),
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create auth request: %w", err)
 	}
 	authReq.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}
 	authResp, err := client.Do(authReq)
 	if err != nil {
-		return err
+		return fmt.Errorf("auth request failed: %w", err)
 	}
 	defer authResp.Body.Close()
 
 	if authResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(authResp.Body)
-		return fmt.Errorf("auth failed: %s", string(body))
+		h.logDebug("Auth failed with status %d: %s", authResp.StatusCode, string(body))
+		return fmt.Errorf("auth failed with status %d: %s", authResp.StatusCode, string(body))
 	}
 
 	// Get the session cookie
@@ -108,6 +143,8 @@ func (h *PlexOverseerrHandler) ServeHTTP(w http.ResponseWriter, r *http.Request,
 		return fmt.Errorf("no session cookie in response")
 	}
 
+	h.logDebug("Successfully obtained session cookie")
+
 	// Add the cookie to the request
 	r.AddCookie(sessionCookie)
 
@@ -118,8 +155,23 @@ func (h *PlexOverseerrHandler) ServeHTTP(w http.ResponseWriter, r *http.Request,
 // UnmarshalCaddyfile implements caddyfile.Unmarshaler.
 func (h *PlexOverseerrHandler) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 	for d.Next() {
-		if !d.Args(&h.OverseerrURL) {
-			return d.ArgErr()
+		for d.NextBlock(0) {
+			switch d.Val() {
+			case "overseerr_url":
+				if !d.NextArg() {
+					return d.ArgErr()
+				}
+				h.OverseerrURL = d.Val()
+			case "identifier_type":
+				if !d.NextArg() {
+					return d.ArgErr()
+				}
+				h.IdentifierType = d.Val()
+			case "debug":
+				h.Debug = true
+			default:
+				return d.Errf("unknown subdirective %s", d.Val())
+			}
 		}
 	}
 	return nil

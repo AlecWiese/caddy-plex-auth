@@ -4,11 +4,11 @@
 			delay_start 3
 			realm generic
 			driver generic
-			client_id 0ecd1e5b-43c1-4b23-94c7-aec8d44f896e
-			client_secret H9sqhu3KKjxGx4hFkdkJqp3VBCgYchT0
+			client_id env.pocketIDClient
+			client_secret env.pocketIDSecret
 			scopes openid email profile
-			base_auth_url http://localhost
-			metadata_url http://localhost/.well-known/openid-configuration
+			base_auth_url http://pocketid.moosefeelings.com
+			metadata_url http://pocketid.moosefeelings.com
 		}
 
 	    authentication portal overseerrportal {
@@ -65,10 +65,10 @@ overseerr-test.moosefeelings.com {
 		path /caddy-security/*
 	}
 	route @auth {
-		authenticate with myportal
+		authenticate with overseerrportal
 	}
 	route {
-		authorize with mypolicy
+		authorize with overseerr_policy
 		reverse_proxy 192.168.7.51:8686
 	}
 }
