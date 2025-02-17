@@ -36,7 +36,7 @@ func init() {
 // CaddyModule returns the Caddy module information.
 func (Provider) CaddyModule() caddy.ModuleInfo {
 	return caddy.ModuleInfo{
-		ID:  "plex_auth",
+		ID:  "http.handlers.plexauth",
 		New: func() caddy.Module { return &Provider{new(PlexOverseerrHandler)} },
 	}
 }
@@ -143,7 +143,7 @@ func (h *PlexOverseerrHandler) ServeHTTP(w http.ResponseWriter, r *http.Request,
 	// Get the session cookie
 	var sessionCookie *http.Cookie
 	for _, cookie := range authResp.Cookies() {
-		if (cookie.Name == "connect.sid") {
+		if cookie.Name == "connect.sid" {
 			sessionCookie = cookie
 			break
 		}
