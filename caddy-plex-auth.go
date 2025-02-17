@@ -16,16 +16,17 @@ import (
 
 
 // Provider wraps the provider implementation as a Caddy module.
+type Provider struct{ *PlexOverseerrHandler.Provider }
 
 func init() {
-	caddy.RegisterModule(PlexOverseerrHandler{})
+	caddy.RegisterModule(Provider{})
 }
 
 // CaddyModule returns the Caddy module information.
 func (Provider) CaddyModule() caddy.ModuleInfo {
 	return caddy.ModuleInfo{
 		ID:  "plex.auth",
-		New: func() caddy.Module { return &Provider{new(PlexOverseerrHandler)} },
+		New: func() caddy.Module { return &Provider{new(PlexOverseerrHandler.Provider)} },
 	}
 }
 
