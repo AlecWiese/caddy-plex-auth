@@ -24,7 +24,7 @@ func init() {
 // CaddyModule returns the Caddy module information.
 func (Provider) CaddyModule() caddy.ModuleInfo {
 	return caddy.ModuleInfo{
-		ID:  "caddy.plex.auth",
+		ID:  "plex.auth",
 		New: func() caddy.Module { return &Provider{new(PlexOverseerrHandler)} },
 	}
 }
