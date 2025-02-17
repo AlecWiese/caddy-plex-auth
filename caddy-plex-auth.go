@@ -14,9 +14,8 @@ import (
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
 )
 
-
 // Provider wraps the provider implementation as a Caddy module.
-type Provider struct{ *PlexOverseerrHandler.Provider }
+type Provider struct{ *PlexOverseerrHandler }
 
 func init() {
 	caddy.RegisterModule(Provider{})
@@ -26,8 +25,13 @@ func init() {
 func (Provider) CaddyModule() caddy.ModuleInfo {
 	return caddy.ModuleInfo{
 		ID:  "plex.auth",
-		New: func() caddy.Module { return &Provider{new(PlexOverseerrHandler.Provider)} },
+		New: func() caddy.Module { return &Provider{new(PlexOverseerrHandler)} },
 	}
+}
+
+// Provision implements caddy.Provisioner.
+func (p *Provider) Provision(ctx caddy.Context) error {
+	return p.PlexOverseerrHandler.Provision(ctx)
 }
 
 // PlexOverseerrHandler handles Plex token exchange with Overseerr
@@ -145,7 +149,7 @@ func (h *PlexOverseerrHandler) ServeHTTP(w http.ResponseWriter, r *http.Request,
 	// Get the session cookie
 	var sessionCookie *http.Cookie
 	for _, cookie := range authResp.Cookies() {
-		if cookie.Name == "connect.sid" {
+		if (cookie.Name == "connect.sid") {
 			sessionCookie = cookie
 			break
 		}
@@ -192,7 +196,8 @@ func (h *PlexOverseerrHandler) UnmarshalCaddyfile(d *caddyfile.Dispenser) error 
 // Interface guards
 var (
 	_ caddy.Provisioner           = (*PlexOverseerrHandler)(nil)
-	_ caddy.Validator            = (*PlexOverseerrHandler)(nil)
+	_ caddy.Validator             = (*PlexOverseerrHandler)(nil)
 	_ caddyhttp.MiddlewareHandler = (*PlexOverseerrHandler)(nil)
-	_ caddyfile.Unmarshaler      = (*PlexOverseerrHandler)(nil)
+	_ caddyfile.Unmarshaler       = (*PlexOverseerrHandler)(nil)
+	_ caddy.Provisioner           = (*Provider)(nil)
 )
