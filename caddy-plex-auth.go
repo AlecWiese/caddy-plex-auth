@@ -14,8 +14,19 @@ import (
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
 )
 
+
+// Provider wraps the provider implementation as a Caddy module.
+
 func init() {
 	caddy.RegisterModule(PlexOverseerrHandler{})
+}
+
+// CaddyModule returns the Caddy module information.
+func (Provider) CaddyModule() caddy.ModuleInfo {
+	return caddy.ModuleInfo{
+		ID:  "caddy.plex.auth",
+		New: func() caddy.Module { return &Provider{new(PlexOverseerrHandler)} },
+	}
 }
 
 // PlexOverseerrHandler handles Plex token exchange with Overseerr
