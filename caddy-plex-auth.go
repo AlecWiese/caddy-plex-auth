@@ -14,26 +14,6 @@ import (
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
 )
 
-// Provider wraps the provider implementation as a Caddy module.
-type Provider struct{ *PlexOverseerrHandler }
-
-func init() {
-	caddy.RegisterModule(Provider{})
-}
-
-// CaddyModule returns the Caddy module information.
-func (Provider) CaddyModule() caddy.ModuleInfo {
-	return caddy.ModuleInfo{
-		ID:  "plex.auth",
-		New: func() caddy.Module { return &Provider{new(PlexOverseerrHandler)} },
-	}
-}
-
-// Provision implements caddy.Provisioner.
-func (p *Provider) Provision(ctx caddy.Context) error {
-	return p.PlexOverseerrHandler.Provision(ctx)
-}
-
 // PlexOverseerrHandler handles Plex token exchange with Overseerr
 type PlexOverseerrHandler struct {
 	// The Overseerr base URL
@@ -44,12 +24,26 @@ type PlexOverseerrHandler struct {
 	Debug bool `json:"debug,omitempty"`
 }
 
+// Provider wraps the handler implementation as a Caddy module.
+type Provider struct {
+	*PlexOverseerrHandler
+}
+
+func init() {
+	caddy.RegisterModule(Provider{})
+}
+
 // CaddyModule returns the Caddy module information.
-func (PlexOverseerrHandler) CaddyModule() caddy.ModuleInfo {
+func (Provider) CaddyModule() caddy.ModuleInfo {
 	return caddy.ModuleInfo{
-		ID:  "http.handlers.plexoverseerr",
-		New: func() caddy.Module { return new(PlexOverseerrHandler) },
+		ID:  "http.handlers.plex_auth",
+		New: func() caddy.Module { return &Provider{new(PlexOverseerrHandler)} },
 	}
+}
+
+// Provision implements caddy.Provisioner.
+func (p *Provider) Provision(ctx caddy.Context) error {
+	return p.PlexOverseerrHandler.Provision(ctx)
 }
 
 // Provision implements caddy.Provisioner.
@@ -200,4 +194,6 @@ var (
 	_ caddyhttp.MiddlewareHandler = (*PlexOverseerrHandler)(nil)
 	_ caddyfile.Unmarshaler       = (*PlexOverseerrHandler)(nil)
 	_ caddy.Provisioner           = (*Provider)(nil)
+	_ caddyhttp.MiddlewareHandler = (*Provider)(nil)
+	_ caddyfile.Unmarshaler       = (*Provider)(nil)
 )
